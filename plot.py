@@ -12,7 +12,7 @@ class makePlot():
     por = 0.2190
 
     def __init__(self, num, title,  results,
-                 compWithLitData=False, compWithPrevData=False, drain=False, imbibe=False, exclude=None, include=None):
+                 compWithLitData=False, compWithPrevData=False, drain=False, imbibe=False, exclude=None, include=None, hysteresis=False):
 
         self.colorlist = ['g', 'c', 'y', 'm', 'k', 'b', 'lightcoral', 'lime',    
                           'navy', 'tomato', 'khaki', 'olive', 'gold', 'teal', 'darkcyan', 'tan', 'limegreen']
@@ -29,9 +29,10 @@ class makePlot():
         self.exclude = exclude
         self.include = include
         self.results = results
+        self.hysteresis = hysteresis
         self.img_dir = "./result_images/"
         os.makedirs(os.path.dirname(self.img_dir), exist_ok=True)
-
+        
         if self.drain:
             drainageBank(self)
         elif self.imbibe:
@@ -41,8 +42,11 @@ class makePlot():
         if self.drain:
             filename = self.img_dir+'Pc_vs_Sw_Drainage_{}_{}.jpg'.format(
                 self.title, self.num)
-        else:
+        elif self.imbibe:
             filename = self.img_dir+'Pc_vs_Sw_Imbibition_{}_{}.jpg'.format(
+                self.title, self.num)
+        elif self.hysteresis:
+            filename = self.img_dir+'Pc_vs_Sw_hysteresis_{}_{}.jpg'.format(
                 self.title, self.num)
         
         leg = []
@@ -50,6 +54,7 @@ class makePlot():
                     
         for val in self.results.keys():
             res = self.results[val]
+            print(res)
             if val == 'Literature data':
                 res = res['pcSw']
                 res1 = res.loc[res['source'] == 'MICP']

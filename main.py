@@ -3,12 +3,10 @@ import sys
 import os
 import pandas as pd
 
-from inputData import InputData
-from network import Network
-from SPhase import SinglePhase
-from TPhaseD import TwoPhaseDrainage
-from TPhaseImb import TwoPhaseImbibition
-from TPhaseSD import TwoPhaseSecDrainage
+from Flowmodel.inputData import InputData
+from Flowmodel.network import Network
+from Flowmodel.SPhase import SinglePhase
+from Hysteresis import PDrainage, PImbibition, SecDrainage, SecImbibition
 from plot import makePlot
 
 
@@ -42,9 +40,15 @@ def main():
         imbibePlot = False
         probablePlot = False
         netsim.writeData = False
+        includeTrapping = True
+
+        primaryD, primaryI = True, True
+        numCycles = 2
 
         # two Phase simulations
         if input_data.satControl():
+            netsim.prop_drainage = {}
+            netsim.prop_imbibition = {}
             for cycle in range(len(input_data.satControl())):
                 netsim.finalSat, Pc, netsim.dSw, netsim.minDeltaPc,\
                  netsim.deltaPcFraction, netsim.calcKr, netsim.calcI,\
@@ -52,14 +56,26 @@ def main():
                  netsim.EscapeFromLeft, netsim.EscapeFromRight =\
                  input_data.satControl()[cycle]
                 netsim.filling = True
+
                 if netsim.finalSat < netsim.satW:
                     # Drainage process
-                    (netsim.wettClass, netsim.minthetai, netsim.maxthetai,
-                     netsim.delta, netsim.eta, netsim.distModel, netsim.sepAng
-                     ) = input_data.initConAng('INIT_CONT_ANG')
                     netsim.is_oil_inj = True
                     netsim.maxPc = Pc
-                    netsim = TwoPhaseDrainage(netsim)
+                    if primaryD:
+                        (netsim.wettClass, netsim.minthetai, netsim.maxthetai, netsim.delta,
+                            netsim.eta, netsim.distModel, netsim.sepAng) = input_data.initConAng(
+                                'INIT_CONT_ANG')
+                        print('***********************')
+                        netsim = PDrainage(netsim, includeTrapping=includeTrapping,
+                                                  writeData=True)
+                        print('&&&&&&&&&&&&&&&&&&&&&&')
+                        primaryD = False
+                        netsim.prop_drainage['contactAng'] = netsim.contactAng.copy()
+                        netsim.prop_drainage['thetaRecAng'] = netsim.thetaRecAng.copy()
+                        netsim.prop_drainage['thetaAdvAng'] = netsim.thetaAdvAng.copy()
+                    else:
+                        netsim = SecDrainage(netsim, includeTrapping=includeTrapping,
+                                             writeData=True)
                     netsim.drainage()
                     
                     if drainPlot:
@@ -71,19 +87,30 @@ def main():
     
                 else:
                     # Imbibition process
-                    netsim.probable = True
-                    (netsim.wettClass, netsim.minthetai, netsim.maxthetai,
-                     netsim.delta, netsim.eta, netsim.distModel, netsim.sepAng
-                     ) = input_data.initConAng('EQUIL_CON_ANG')
                     netsim.minPc = Pc
-                    netsim = TwoPhaseImbibition(netsim)
+                    if primaryI:
+                        (netsim.wettClass, netsim.minthetai, netsim.maxthetai, netsim.delta,
+                            netsim.eta, netsim.distModel, netsim.sepAng) = input_data.initConAng(
+                                'EQUIL_CON_ANG')
+                        netsim = PImbibition(netsim, writeData=True,
+                                             includeTrapping=includeTrapping)
+                        primaryI = False
+                        netsim.prop_imbibition['contactAng'] = netsim.contactAng.copy()
+                        netsim.prop_imbibition['thetaRecAng'] = netsim.thetaRecAng.copy()
+                        netsim.prop_imbibition['thetaAdvAng'] = netsim.thetaAdvAng.copy()
+                    else:
+                        netsim = SecImbibition(netsim, writeData=True,
+                                               includeTrapping=includeTrapping)
                     netsim.imbibition()
+
                     if imbibePlot:
                         imbibition_results = {}
                         imbibition_results['model'] = pd.read_csv(
                             netsim.fQ.name, names=[
                             'satW', 'qWout', 'krw', 'qNWout', 'krnw', 'capPres', 'invasions'],
                             sep=',', skiprows=18, index_col=False)
+            
+            #netsim = Hysteresis(netsim)
             
             if toPlot:
                 if drainPlot:
