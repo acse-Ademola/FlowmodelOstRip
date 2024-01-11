@@ -50,7 +50,7 @@ class makePlot():
             for val2 in self.results[val1].keys():
                 res = self.results[val1][val2]
                 plt.plot(res['satW'], res['capPres']/1000, '--v',
-                         color=self.colorlist[ind], linewidth=2)
+                         color=self.colorlist[ind], linewidth=1)
                 #from IPython import embed; embed()
                 leg.append(val1+'_'+val2)
                 ind += 1

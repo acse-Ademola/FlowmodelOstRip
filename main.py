@@ -41,7 +41,7 @@ def main():
         imbibePlot = False
         probablePlot = False
         writeData = True
-        includeTrapping = True
+        includeTrapping = False
 
         primaryD, primaryI = True, True
 
