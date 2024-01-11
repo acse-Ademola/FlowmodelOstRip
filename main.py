@@ -3,9 +3,10 @@ import sys
 import os
 import pandas as pd
 
+sys.path.append("../Flowmodel")
 from Flowmodel.inputData import InputData
 from Flowmodel.network import Network
-from Flowmodel.SPhase import SinglePhase
+from Flowmodel.sPhase import SinglePhase
 from Hysteresis import PDrainage, PImbibition, SecDrainage, SecImbibition
 from plot import makePlot
 
@@ -39,11 +40,10 @@ def main():
         drainPlot = False
         imbibePlot = False
         probablePlot = False
-        netsim.writeData = False
-        includeTrapping = True
+        writeData = True
+        includeTrapping = False
 
         primaryD, primaryI = True, True
-        numCycles = 2
 
         # two Phase simulations
         if input_data.satControl():
@@ -65,17 +65,15 @@ def main():
                         (netsim.wettClass, netsim.minthetai, netsim.maxthetai, netsim.delta,
                             netsim.eta, netsim.distModel, netsim.sepAng) = input_data.initConAng(
                                 'INIT_CONT_ANG')
-                        print('***********************')
                         netsim = PDrainage(netsim, includeTrapping=includeTrapping,
-                                                  writeData=True)
-                        print('&&&&&&&&&&&&&&&&&&&&&&')
+                                                  writeData=writeData)
                         primaryD = False
                         netsim.prop_drainage['contactAng'] = netsim.contactAng.copy()
                         netsim.prop_drainage['thetaRecAng'] = netsim.thetaRecAng.copy()
                         netsim.prop_drainage['thetaAdvAng'] = netsim.thetaAdvAng.copy()
                     else:
                         netsim = SecDrainage(netsim, includeTrapping=includeTrapping,
-                                             writeData=True)
+                                             writeData=writeData)
                     netsim.drainage()
                     
                     if drainPlot:
@@ -92,14 +90,14 @@ def main():
                         (netsim.wettClass, netsim.minthetai, netsim.maxthetai, netsim.delta,
                             netsim.eta, netsim.distModel, netsim.sepAng) = input_data.initConAng(
                                 'EQUIL_CON_ANG')
-                        netsim = PImbibition(netsim, writeData=True,
+                        netsim = PImbibition(netsim, writeData=writeData,
                                              includeTrapping=includeTrapping)
                         primaryI = False
                         netsim.prop_imbibition['contactAng'] = netsim.contactAng.copy()
                         netsim.prop_imbibition['thetaRecAng'] = netsim.thetaRecAng.copy()
                         netsim.prop_imbibition['thetaAdvAng'] = netsim.thetaAdvAng.copy()
                     else:
-                        netsim = SecImbibition(netsim, writeData=True,
+                        netsim = SecImbibition(netsim, writeData=writeData,
                                                includeTrapping=includeTrapping)
                     netsim.imbibition()
 
