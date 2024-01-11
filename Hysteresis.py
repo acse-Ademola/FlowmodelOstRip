@@ -5,12 +5,13 @@ import warnings
 import pandas as pd
 from itertools import chain
 
-from TPhaseD import TwoPhaseDrainage
-from Flowmodel.TPhaseImb import TwoPhaseImbibition
+from Flowmodel.tPhaseD import TwoPhaseDrainage
+from Flowmodel.tPhaseImb import TwoPhaseImbibition
 from Flowmodel.utilities import Computations
 
 
 class PDrainage(TwoPhaseDrainage):
+    cycle = 0
     def __new__(cls, obj, writeData=False, includeTrapping=True):
         obj.__class__ = PDrainage
         return obj
@@ -18,6 +19,12 @@ class PDrainage(TwoPhaseDrainage):
     def __init__(self, obj, writeData=False, includeTrapping=True):
         super().__init__(obj, writeData=writeData)
         self.includeTrapping = includeTrapping
+        self.cycle += 1
+        if self.writeData:
+            self.__writeHeadersD__()
+            self.__fileName__()
+        
+        
 
     def __PDrainage__(self):
         warnings.simplefilter(action='ignore', category=RuntimeWarning)
@@ -137,7 +144,7 @@ class PDrainage(TwoPhaseDrainage):
         except IndexError:
             pass
 
-    def identifyTrappedElements(self, fluid):
+    def identifyTrappedElements(self):
         Notdone = (self.fluid==1)
         tin = list(self.conTToIn[Notdone[self.conTToIn+self.nPores]])
         tout = self.conTToOut[Notdone[self.conTToOut+self.nPores]]
@@ -174,7 +181,7 @@ class PDrainage(TwoPhaseDrainage):
             except IndexError:
                 break
 
-    def __writeHeaders__(self):
+    def __writeHeadersD__(self):
         self.resultD_str="======================================================================\n"
         self.resultD_str+="# Fluid properties:\nsigma (mN/m)  \tmu_w (cP)  \tmu_nw (cP)\n"
         self.resultD_str+="# \t%.6g\t\t%.6g\t\t%.6g" % (
@@ -201,45 +208,76 @@ class PDrainage(TwoPhaseDrainage):
         self.resultD_str+="\n# Sw\t qW(m3/s)\t krw\t qNW(m3/s)\t krnw\t Pc\t Invasions"
 
 
-    def findNum(self):
-        self._num = 1
-        label = 'wt' if self.includeTrapping else 'nt'
+    def __fileName__(self):
         result_dir = "./results_csv/"
         os.makedirs(os.path.dirname(result_dir), exist_ok=True)
-        while True:         
-            file_name = os.path.join(result_dir, "Flowmodel_"+
-                                self.title+"_Drainage_cycle1_"+label+"_"+str(self._num)+".csv")
-            if os.path.isfile(file_name): self._num += 1
-            else:
-                break
-        self.file_name = file_name
+        label = 'wt' if self.includeTrapping else 'nt'
+        if not hasattr(self, '_num'):
+            self._num = 1
+            while True:         
+                file_name = os.path.join(result_dir, 
+                                        "Flowmodel_"+self.title+"_Drainage_cycle"+str(self.cycle)+\
+                                            "_"+label+"_"+str(self._num)+".csv")
+                if os.path.isfile(file_name): self._num += 1
+                else:
+                    break
+            self.file_name = file_name
+        else:
+            self.file_name = os.path.join(
+                result_dir, "Flowmodel_"+self.title+"_Drainage_cycle"+str(self.cycle)+\
+                    "_"+label+"_"+str(self._num)+".csv")
+
+
+class SecDrainage(PDrainage):
+    def __new__(cls, obj, writeData=False, includeTrapping=True):
+        obj.__class__ = SecDrainage
+        return obj
+    
+    def __init__(self, obj, writeData=False, includeTrapping=True):
+        self.do = Computations(self)
+        #from IPython import embed; embed()
+        self.fluid[[-1, 0]] = 1, 0  
+        self.contactAng, self.thetaRecAng, self.thetaAdvAng = self.prop_drainage.values()
+        self.cornExistsTr[:] = False
+        self.cornExistsSq[:] = False
+        self.initedTr[:] = False
+        self.initedSq[:] = False
+        self.includeTrapping = includeTrapping
+        
+        self.maxPc = self.capPresMax
+        self.capPresMax = 0        
+        
+        self.ElemToFill = SortedList(key=lambda i: self.LookupList(i))
+        condlist = np.zeros(self.totElements, dtype='bool')
+        condlist[(self.fluid[1:-1]==0)] = np.array(
+            [*map(lambda i: self.func1(i), self.elementLists[(self.fluid[1:-1]==0)])])
+        self.ElemToFill.update(self.elementLists[condlist])
+        self.NinElemList = np.ones(self.totElements, dtype='bool')
+        self.NinElemList[self.elementLists[condlist]] = False
+
+        self._cornArea = self.AreaWPhase.copy()
+        self._centerArea = self.AreaNWPhase.copy()
+        self._cornCond = self.gwSPhase.copy()
+        self._centerCond = self.gnwSPhase.copy()
+
+        self.cycle += 1
+        self.writeData = writeData
+        if self.writeData:
+            self.__fileName__()
+            self.__writeHeadersD__()
+        else: self.resultD_str = ""
+
+    
+    def func1(self, i):
+        if i<=self.nPores:
+            arr = self.PTConData[i]+self.nPores
+            return any(self.fluid[arr]==1)
+        else:
+            arr = np.array([self.P1array[i-self.nPores], self.P2array[i-self.nPores]])
+            return any(self.fluid[arr]==1)
+
         
             
-        
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-
-    
-
 class PImbibition(TwoPhaseImbibition):
     def __new__(cls, obj, writeData=False, includeTrapping=True):
         obj.__class__ = PImbibition
@@ -249,6 +287,9 @@ class PImbibition(TwoPhaseImbibition):
         super().__init__(obj, writeData=writeData)
         self.writeData = writeData
         self.includeTrapping = includeTrapping
+        if self.writeData:
+            self.__writeHeadersI__()
+            self.__fileName__()
 
     def __PImbibition__(self):
         self.totNumFill = 0
@@ -401,11 +442,52 @@ class PImbibition(TwoPhaseImbibition):
         except AssertionError:
             pass
 
+    
+    def __writeHeadersI__(self):
+        self.resultI_str="======================================================================\n"
+        self.resultI_str+="# Fluid properties:\nsigma (mN/m)  \tmu_w (cP)  \tmu_nw (cP)\n"
+        self.resultI_str+="# \t%.6g\t\t%.6g\t\t%.6g" % (
+            self.sigma*1000, self.muw*1000, self.munw*1000, )
+        self.resultI_str+="\n# calcBox: \t %.6g \t %.6g" % (
+            self.calcBox[0], self.calcBox[1], )
+        self.resultI_str+="\n# Wettability:"
+        self.resultI_str+="\n# model \tmintheta \tmaxtheta \tdelta \teta \tdistmodel"
+        self.resultI_str+="\n# %.6g\t\t%.6g\t\t%.6g\t\t%.6g\t\t%.6g" % (
+            self.wettClass, round(self.minthetai*180/np.pi,3), round(self.maxthetai*180/np.pi,3), self.delta, self.eta,) 
+        self.resultI_str+=self.distModel
+        self.resultI_str+="\nmintheta \tmaxtheta \tmean  \tstd"
+        self.resultI_str+="\n# %3.6g\t\t%3.6g\t\t%3.6g\t\t%3.6g" % (
+            round(self.contactAng.min()*180/np.pi,3), round(self.contactAng.max()*180/np.pi,3), 
+            round(self.contactAng.mean()*180/np.pi,3), round(self.contactAng.std()*180/np.pi,3))
+        
+        self.resultI_str+="\nPorosity:  %3.6g" % (self.porosity)
+        self.resultI_str+="\nMaximum pore connection:  %3.6g" % (self.maxPoreCon)
+        self.resultI_str+="\nAverage pore-to-pore distance:  %3.6g" % (self.avgP2Pdist)
+        self.resultI_str+="\nMean pore radius:  %3.6g" % (self.Rarray[self.poreList].mean())
+        self.resultI_str+="\nAbsolute permeability:  %3.6g" % (self.absPerm)
+        
+        self.resultI_str+="\n======================================================================"
+        self.resultI_str+="\n# Sw\t qW(m3/s)\t krw\t qNW(m3/s)\t krnw\t Pc\t Invasions"
 
 
-
-
-
+    def __fileName__(self):
+        result_dir = "./results_csv/"
+        os.makedirs(os.path.dirname(result_dir), exist_ok=True)
+        label = 'wt' if self.includeTrapping else 'nt'
+        if not hasattr(self, '_num'):
+            self._num = 1
+            while True:         
+                file_name = os.path.join(
+                    result_dir, "Flowmodel_"+self.title+"_Imbibition_cycle"+str(self.cycle)+\
+                        "_"+label+"_"+str(self._num)+".csv")
+                if os.path.isfile(file_name): self._num += 1
+                else:
+                    break
+            self.file_name = file_name
+        else:
+            self.file_name = os.path.join(
+                result_dir, "Flowmodel_"+self.title+"_Imbibition_cycle"+str(self.cycle)+\
+                    "_"+label+"_"+str(self._num)+".csv") 
 
 
 
@@ -435,66 +517,10 @@ class SecImbibition(PImbibition):
         self._condNWP = self._centerCond.copy()
 
         self.writeData = writeData
-        if self.writeData: self.__writeHeadersI__()
-        else: self.resultI_str = ""
-
-
-    def __writeHeaders__(self):
-        self.resultI_str="======================================================================\n"
-        self.resultI_str+="# Fluid properties:\nsigma (mN/m)  \tmu_w (cP)  \tmu_nw (cP)\n"
-        self.resultI_str+="# \t%.6g\t\t%.6g\t\t%.6g" % (
-            self.sigma*1000, self.muw*1000, self.munw*1000, )
-        self.resultI_str+="\n# calcBox: \t %.6g \t %.6g" % (
-            self.calcBox[0], self.calcBox[1], )
-        self.resultI_str+="\n# Wettability:"
-        self.resultI_str+="\n# model \tmintheta \tmaxtheta \tdelta \teta \tdistmodel"
-        self.resultI_str+="\n# %.6g\t\t%.6g\t\t%.6g\t\t%.6g\t\t%.6g" % (
-            self.wettClass, round(self.minthetai*180/np.pi,3), round(self.maxthetai*180/np.pi,3), self.delta, self.eta,) 
-        self.resultI_str+=self.distModel
-        self.resultI_str+="\nmintheta \tmaxtheta \tmean  \tstd"
-        self.resultI_str+="\n# %3.6g\t\t%3.6g\t\t%3.6g\t\t%3.6g" % (
-            round(self.contactAng.min()*180/np.pi,3), round(self.contactAng.max()*180/np.pi,3), 
-            round(self.contactAng.mean()*180/np.pi,3), round(self.contactAng.std()*180/np.pi,3))
-        
-        self.resultI_str+="\nPorosity:  %3.6g" % (self.porosity)
-        self.resultI_str+="\nMaximum pore connection:  %3.6g" % (self.maxPoreCon)
-        self.resultI_str+="\nAverage pore-to-pore distance:  %3.6g" % (self.avgP2Pdist)
-        self.resultI_str+="\nMean pore radius:  %3.6g" % (self.Rarray[self.poreList].mean())
-        self.resultI_str+="\nAbsolute permeability:  %3.6g" % (self.absPerm)
-        
-        self.resultI_str+="\n======================================================================"
-        self.resultI_str+="\n# Sw\t qW(m3/s)\t krw\t qNW(m3/s)\t krnw\t Pc\t Invasions"  
+        if self.writeData:
+            self.__writeHeadersI__()
+            self.__fileName__()
+        else: self.resultI_str = "" 
 
 
 
-class SecDrainage(TwoPhaseDrainage):
-    def __new__(cls, obj, writeData=False, includeTrapping=True):
-        obj.__class__ = SecDrainage
-        return obj
-    
-    def __init__(self, obj, writeData=False, includeTrapping=True):
-        self.do = Computations(self)
-        #from IPython import embed; embed()
-        self.contactAng, self.thetaRecAng, self.thetaAdvAng = self.prop_drainage.values()
-        self.cornExistsTr[:] = False
-        self.cornExistsSq[:] = False
-        self.initedTr[:] = False
-        self.initedSq[:] = False
-        
-        self.maxPc = self.capPresMax
-        self.capPresMax = 0        
-        
-        self.ElemToFill = SortedList(key=lambda i: self.LookupList(i))
-        ElemToFill = self.nPores+self.conTToIn
-        self.ElemToFill.update(ElemToFill)
-        self.NinElemList = np.ones(self.totElements, dtype='bool')
-        self.NinElemList[ElemToFill] = False
-
-        self._cornArea = self.AreaWPhase.copy()
-        self._centerArea = self.AreaNWPhase.copy()
-        self._cornCond = self.gwSPhase.copy()
-        self._centerCond = self.gnwSPhase.copy()
-
-        self.writeData = writeData
-        if self.writeData: self.__writeHeadersD__()
-        else: self.resultD_str = ""

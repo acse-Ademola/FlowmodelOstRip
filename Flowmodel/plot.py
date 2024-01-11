@@ -12,7 +12,7 @@ class makePlot():
     por = 0.2190
 
     def __init__(self, num, title,  results,
-                 compWithLitData=False, compWithPrevData=False, drain=False, imbibe=False, exclude=None, include=None, hysteresis=False, includeTrapping=True):
+                 compWithLitData=False, compWithPrevData=False, drain=False, imbibe=False, exclude=None, include=None):
 
         self.colorlist = ['g', 'c', 'y', 'm', 'k', 'b', 'lightcoral', 'lime',    
                           'navy', 'tomato', 'khaki', 'olive', 'gold', 'teal', 'darkcyan', 'tan', 'limegreen']
@@ -29,49 +29,20 @@ class makePlot():
         self.exclude = exclude
         self.include = include
         self.results = results
-        self.hysteresis = hysteresis
-        self.label = 'wt' if includeTrapping else 'nt'
         self.img_dir = "./result_images/"
         os.makedirs(os.path.dirname(self.img_dir), exist_ok=True)
-        
+
         if self.drain:
             drainageBank(self)
         elif self.imbibe:
             imbibitionBank(self)
             
     def pcSw(self):
-        filename = self.img_dir+'Pc_vs_Sw_hysteresis_{}_{}_{}.png'.format(
-            self.title, self.label, self.num)
-        
-        leg = []
-        ind = 0 
-          
-        for val1 in self.results.keys():
-            for val2 in self.results[val1].keys():
-                res = self.results[val1][val2]
-                plt.plot(res['satW'], res['capPres']/1000, '--v',
-                         color=self.colorlist[ind], linewidth=2)
-                #from IPython import embed; embed()
-                leg.append(val1+'_'+val2)
-                ind += 1
-            
-        plt.ylabel('Capillary Pressure(kPa)')
-        plt.legend(leg)
-        plt.ylim(0, 25)
-        plt.xlim(0, 1)
-        plt.xlabel('Sw')
-        plt.savefig(filename, dpi=500)
-        plt.close()
-
-    def pcSw1(self):
         if self.drain:
-            filename = self.img_dir+'Pc_vs_Sw_Drainage_{}_{}.png'.format(
+            filename = self.img_dir+'Pc_vs_Sw_Drainage_{}_{}.jpg'.format(
                 self.title, self.num)
-        elif self.imbibe:
-            filename = self.img_dir+'Pc_vs_Sw_Imbibition_{}_{}.png'.format(
-                self.title, self.num)
-        elif self.hysteresis:
-            filename = self.img_dir+'Pc_vs_Sw_hysteresis_{}_{}.png'.format(
+        else:
+            filename = self.img_dir+'Pc_vs_Sw_Imbibition_{}_{}.jpg'.format(
                 self.title, self.num)
         
         leg = []
@@ -79,7 +50,6 @@ class makePlot():
                     
         for val in self.results.keys():
             res = self.results[val]
-            print(res)
             if val == 'Literature data':
                 res = res['pcSw']
                 res1 = res.loc[res['source'] == 'MICP']
