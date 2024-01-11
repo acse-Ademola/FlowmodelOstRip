@@ -248,12 +248,15 @@ class SecDrainage(PDrainage):
         self.capPresMax = 0        
         
         self.ElemToFill = SortedList(key=lambda i: self.LookupList(i))
-        condlist = np.zeros(self.totElements, dtype='bool')
+        print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+        condlist = np.zeros(self.totElements-2, dtype='bool')
         condlist[(self.fluid[1:-1]==0)] = np.array(
             [*map(lambda i: self.func1(i), self.elementLists[(self.fluid[1:-1]==0)])])
         self.ElemToFill.update(self.elementLists[condlist])
+        #from IPython import embed; embed()
         self.NinElemList = np.ones(self.totElements, dtype='bool')
         self.NinElemList[self.elementLists[condlist]] = False
+
 
         self._cornArea = self.AreaWPhase.copy()
         self._centerArea = self.AreaNWPhase.copy()
